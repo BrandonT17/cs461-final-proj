@@ -1,4 +1,4 @@
-// Shell.
+// Shell - main file for final project
 
 #include "types.h"
 #include "user.h"
@@ -11,7 +11,15 @@
 #define LIST  4
 #define BACK  5
 
+// For history command
+#define HISTORY_SIZE 100
 #define MAXARGS 10
+
+struct {
+  char * commands[HISTORY_SIZE];
+  int start;
+  int count;
+} history;
 
 struct cmd {
   int type;
@@ -494,3 +502,37 @@ nulterminate(struct cmd *cmd)
   }
   return cmd;
 }
+
+// initialize history
+void
+init_history(void)
+{
+  int i;
+  history.start = 0;
+  history.count = 0;
+  for(i = 0; i < HISTORY_SIZE; i++) {
+    history.commands[i] = 0;
+  }
+}
+
+// add commands to history
+void
+add_to_history(char *cmd)
+{
+  int index;
+  char * newcmd;
+
+  // filter commands
+  // calculate index
+  // free oldest command
+  // allocate memory and copy command
+}
+
+// print history
+void
+print_history(void)
+{
+
+}
+
+// TODO: implement into main loop
