@@ -522,9 +522,20 @@ add_to_history(char *cmd)
   int index;
   char * newcmd;
 
-  // filter commands
-  // calculate index
+  // filter commands (no empty command or history command)
+  if(cmd[0] == '\0' || strcmp(cmd[0], 'history\n') == 0) {
+    return;
+  }
+  // calculate index (circular buffer)
+  index = (history.start + history.count) % HISTORY_SIZE;
   // free oldest command
+  if(history.count == HISTORY_SIZE) {
+    if(history.commands[history.start]) {
+      free(history.commands[history.start])
+    }
+    history.start = (history.start + 1) % HISTORY_SIZE;
+    history.count--;
+  }
   // allocate memory and copy command
 }
 
