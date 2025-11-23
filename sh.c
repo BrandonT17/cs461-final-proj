@@ -516,6 +516,7 @@ init_history(void)
 }
 
 // add commands to history
+// TODO: decide if "history" command should store itself...
 void
 add_to_history(char *cmd)
 {
@@ -539,7 +540,11 @@ add_to_history(char *cmd)
   // allocate memory and copy command
 }
 
-// print history
+// TODO: print history command
+// when "history" is inputted by the user, print out previous (x) commands along with their "number" within the buffer
+// EX: -> user inputs "history"
+// output: 1004 clear \n 1005 ls \n 1004 echo hello.txt
+
 void
 print_history(void)
 {
