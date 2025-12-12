@@ -16,9 +16,10 @@
 #define MAXARGS 10
 
 struct {
-  char * commands[HISTORY_SIZE];
-  int start;
-  int count;
+  char *commands[HISTORY_SIZE];  // Array of command strings
+  int start;                      // Index of oldest command (circular buffer)
+  int count;                      // Number of commands stored
+  int total;                      // Total commands entered (for numbering)
 } history;
 
 struct cmd {
@@ -60,6 +61,9 @@ struct backcmd {
 int fork1(void);  // Fork but panics on failure.
 void panic(char*);
 struct cmd *parsecmd(char*);
+void init_history(void);
+void add_to_history(char *cmd);
+void print_history(void);
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Winfinite-recursion"
@@ -152,11 +156,27 @@ getcmd(char *buf, int nbuf)
   return 0;
 }
 
+// Helper function: compare strings up to n characters
+int
+strncmp(const char *s1, const char *s2, int n)
+{
+  while(n > 0 && *s1 && *s1 == *s2) {
+    n--;
+    s1++;
+    s2++;
+  }
+  if(n == 0)
+    return 0;
+  return (unsigned char)*s1 - (unsigned char)*s2;
+}
 int
 main(void)
 {
   static char buf[100];
   int fd;
+
+  // Initialize history
+  init_history();
 
   // Ensure that three file descriptors are open.
   while((fd = open("console", O_RDWR)) >= 0){
@@ -168,20 +188,40 @@ main(void)
 
   // Read and run input commands.
   while(getcmd(buf, sizeof(buf)) >= 0){
+    // ===== FIX: Strip newline FIRST =====
+    int len = strlen(buf);
+    if(len > 0 && buf[len-1] == '\n')
+      buf[len-1] = 0;
+
+    // Handle empty command
+    if(buf[0] == 0)
+      continue;
+
+    // Handle built-in: cd
     if(buf[0] == 'c' && buf[1] == 'd' && buf[2] == ' '){
-      // Chdir must be called by the parent, not the child.
-      buf[strlen(buf)-1] = 0;  // chop \n
       if(chdir(buf+3) < 0)
         printf(2, "cannot cd %s\n", buf+3);
+      add_to_history(buf);
       continue;
     }
+
+    // Handle built-in: history
+    if(strcmp(buf, "history") == 0){
+      print_history();
+      add_to_history(buf);
+      continue;
+    }
+
+    // Add command to history before executing
+    add_to_history(buf);
+
+    // Execute command
     if(fork1() == 0)
       runcmd(parsecmd(buf));
     wait();
   }
   exit();
 }
-
 void
 panic(char *s)
 {
@@ -503,52 +543,85 @@ nulterminate(struct cmd *cmd)
   return cmd;
 }
 
-// initialize history
+//PAGEBREAK!
+// HISTORY IMPLEMENTATION
+
+// Initialize history
 void
 init_history(void)
 {
   int i;
   history.start = 0;
   history.count = 0;
+  history.total = 0;
   for(i = 0; i < HISTORY_SIZE; i++) {
     history.commands[i] = 0;
   }
 }
 
-// add commands to history
-// TODO: decide if "history" command should store itself...
+// Add command to history
 void
 add_to_history(char *cmd)
 {
   int index;
-  char * newcmd;
+  char *newcmd;
+  int len;
 
-  // filter commands (no empty command or history command)
-  if(cmd[0] == '\0' || strcmp(cmd[0], 'history\n') == 0) {
+  // Filter empty commands
+  if(cmd[0] == '\0') {
     return;
   }
-  // calculate index (circular buffer)
+
+  // Calculate length
+  len = strlen(cmd);
+  
+  // Calculate index in circular buffer
   index = (history.start + history.count) % HISTORY_SIZE;
-  // free oldest command
+  
+  // If buffer is full, free oldest command and advance start
   if(history.count == HISTORY_SIZE) {
     if(history.commands[history.start]) {
-      free(history.commands[history.start])
+      free(history.commands[history.start]);
     }
     history.start = (history.start + 1) % HISTORY_SIZE;
     history.count--;
   }
-  // allocate memory and copy command
+  
+  // Allocate memory for new command
+  newcmd = malloc(len + 1);
+  if(newcmd == 0) {
+    printf(2, "history: malloc failed\n");
+    return;
+  }
+  
+  // Copy command
+  strcpy(newcmd, cmd);
+  
+  // Store in history
+  history.commands[index] = newcmd;
+  history.count++;
+  history.total++;
 }
 
-// TODO: print history command
-// when "history" is inputted by the user, print out previous (x) commands along with their "number" within the buffer
-// EX: -> user inputs "history"
-// output: 1004 clear \n 1005 ls \n 1004 echo hello.txt
-
+// Print history
 void
 print_history(void)
 {
+  int i;
+  int cmd_num;
+  int index;
 
+  if(history.count == 0) {
+    printf(1, "No commands in history\n");
+    return;
+  }
+
+  // Calculate starting command number
+  cmd_num = history.total - history.count + 1;
+
+  // Print each command in history
+  for(i = 0; i < history.count; i++) {
+    index = (history.start + i) % HISTORY_SIZE;
+    printf(1, "%d %s\n", cmd_num + i, history.commands[index]);
+  }
 }
-
-// TODO: implement into main loop
